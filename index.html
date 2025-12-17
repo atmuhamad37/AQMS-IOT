@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IoT Environment Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --accent: #38bdf8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #020617, #020617);
+  color: var(--text);
+}
+
+header {
+  padding: 20px;
+  text-align: center;
+  background: #020617;
+  border-bottom: 1px solid #1f2933;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+header p {
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: auto;
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: linear-gradient(180deg, #020617, #020617);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 0 20px rgba(56,189,248,0.08);
+  transition: transform 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.card .value {
+  font-size: 2.2rem;
+  margin: 10px 0;
+  color: var(--accent);
+}
+
+.unit {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.footer {
+  margin-top: 30px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.history {
+  margin-top: 30px;
+}
+
+.history h2 {
+  margin-bottom: 10px;
+}
+
+.log {
+  background: #020617;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.log div {
+  padding: 6px 0;
+  border-bottom: 1px solid #1f2933;
+}
+
+.loading {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🌱 AQMS - Air Quality Monitoring System IoT </h1>
+  <p>ESP32 • Supabase • Realtime Monitoring</p>
+</header>
+
+<div class="container">
+
+  <div class="grid">
+    <div class="card">
+      <h2>Temperature</h2>
+      <div class="value" id="temp">--</div>
+      <span class="unit">°C</span>
+    </div>
+
+    <div class="card">
+      <h2>Humidity</h2>
+      <div class="value" id="hum">--</div>
+      <span class="unit">%</span>
+    </div>
+
+    <div class="card">
+      <h2>Gas (MQ-2)</h2>
+      <div class="value" id="gas">--</div>
+      <span class="unit">PPM</span>
+    </div>
+
+    <div class="card">
+      <h2>Dust</h2>
+      <div class="value" id="dust">--</div>
+      <span class="unit">µg/m³</span>
+    </div>
+  </div>
+
+  <div class="history">
+    <h2>📜 Latest Records</h2>
+    <div class="log" id="log">
+      <div class="loading">Loading data...</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Auto refresh every 5 seconds • Powered by Supabase
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://glabqrssodxawjojhjzp.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsYWJxcnNzb2R4YXdqb2poanpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NjkwNDksImV4cCI6MjA4MTU0NTA0OX0.4c02eFiYymxMIk78stg-OQ7aPgCzlML0qjxXSst1DTY";
+
+async function loadData() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/environment_data?select=*&order=created_at.desc&limit=10`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const text = await res.text();
+    console.log("RAW RESPONSE:", text);
+
+    const data = JSON.parse(text);
+
+    if (!Array.isArray(data) || data.length === 0) {
+      document.getElementById("log").innerText = "No data available";
+      return;
+    }
+
+    const latest = data[0];
+
+    // SAFE assign (anti error)
+    document.getElementById("temp").innerText =
+      latest.temperature ?? "--";
+    document.getElementById("hum").innerText =
+      latest.humidity ?? "--";
+    document.getElementById("gas").innerText =
+      latest.gas_ppm ?? "--";
+    document.getElementById("dust").innerText =
+      latest.dust_ugm3 ?? "--";
+
+    let logHTML = "";
+    data.forEach(row => {
+      logHTML += `
+        <div>
+          🕒 ${row.created_at ?? "-"} |
+          🌡 ${row.temperature ?? "-"} °C |
+          💧 ${row.humidity ?? "-"} % |
+          🔥 ${row.gas_ppm ?? "-"} PPM |
+          🌫 ${row.dust_ugm3 ?? "-"} µg/m³
+        </div>
+      `;
+    });
+
+    document.getElementById("log").innerHTML = logHTML;
+
+  } catch (err) {
+    document.getElementById("log").innerText =
+      "JS Error: " + err.message;
+    console.error(err);
+  }
+}
+
+loadData();
+setInterval(loadData, 5000);
+</script>
+
+
+</body>
+</html>
